@@ -37,6 +37,31 @@ var _ = Describe("emitTranscription", func() {
 		Expect(t.countEvents(types.ServerEventTypeConversationItemInputAudioTranscriptionCompleted)).To(Equal(1))
 	})
 
+	It("skips the completed event when the streaming backend returns no Final", func() {
+		on := true
+		session := &Session{
+			InputAudioTranscription: &types.AudioTranscription{},
+			ModelConfig: &config.ModelConfig{
+				Pipeline: config.Pipeline{Streaming: config.PipelineStreaming{Transcription: &on}},
+			},
+			ModelInterface: &fakeModel{
+				transcribeDeltas: []string{"Hel", "lo"},
+				// transcribeFinal left nil: the backend stream ended
+				// without a Final.
+			},
+		}
+		t := &fakeTransport{}
+
+		transcript, err := emitTranscription(context.Background(), t, session, "item1", "/tmp/x.wav")
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(transcript).To(Equal(""))
+		// The live deltas already streamed stay as the client's partial;
+		// no empty completed is sent to discard them.
+		Expect(t.countEvents(types.ServerEventTypeConversationItemInputAudioTranscriptionDelta)).To(Equal(2))
+		Expect(t.countEvents(types.ServerEventTypeConversationItemInputAudioTranscriptionCompleted)).To(Equal(0))
+	})
+
 	It("emits a single completed event with no deltas in unary mode", func() {
 		session := &Session{
 			InputAudioTranscription: &types.AudioTranscription{},

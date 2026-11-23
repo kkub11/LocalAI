@@ -135,6 +135,14 @@ func (n *NemoSpeech) openSession(language string) (asrSession, error) {
 	// asr.h documents that asking a recognizer created without one for
 	// diarization fails with INVALID_ARGUMENT.
 	opts.EnableSpeakerDiarization = n.opts.diarModel != ""
+	// Automatic punctuation is keyed the same way on the punctuation model:
+	// the PnC BERT only runs when one is attached, and without the flag the
+	// recognizer never invokes it even though the model is loaded. Gating
+	// here keeps a recognizer created without one from being asked for
+	// punctuation it cannot do.
+	if n.opts.pncModel != "" {
+		opts.EnableAutomaticPunctuation = true
+	}
 	// interim_results is left off deliberately. The runtime emits interims from
 	// next() regardless of it, and they are filtered here rather than
 	// forwarded: see streamPCM's emit for why the wire contract cannot carry

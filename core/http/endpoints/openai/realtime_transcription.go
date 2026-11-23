@@ -6,6 +6,7 @@ import (
 
 	"github.com/mudler/LocalAI/core/http/endpoints/openai/types"
 	"github.com/mudler/LocalAI/core/schema"
+	"github.com/mudler/xlog"
 )
 
 // emitPrecomputedTranscription emits the transcription events for a turn
@@ -65,6 +66,15 @@ func emitTranscription(ctx context.Context, t Transport, session *Session, itemI
 					return "", err
 				}
 			}
+		} else {
+			// The backend stream ended without a Final for this turn. Do
+			// not emit an empty completed event: an empty completed tells
+			// the client the turn produced nothing, which discards live
+			// partial text the client already showed. Returning without
+			// the event lets the client keep what it has; the turn simply
+			// contributes no finalized text.
+			xlog.Warn("realtime transcription: backend stream ended without a Final; skipping empty completed", "itemID", itemID)
+			return "", nil
 		}
 		if err := t.SendEvent(types.ConversationItemInputAudioTranscriptionCompletedEvent{
 			ServerEventBase: types.ServerEventBase{EventID: "event_TODO"},
